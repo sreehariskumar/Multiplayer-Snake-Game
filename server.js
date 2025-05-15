@@ -29,14 +29,19 @@ io.on('connection', (socket) => {
       room.push(socket);
       socket.join(roomId);
 
-      room.forEach(s => s.emit('startGame', roomId));
-      setupGame(room, roomId);
+      const players = {
+        [room[0].id]: 'lime',
+        [room[1].id]: 'cyan'
+      };
+
+      room.forEach(s => s.emit('startGame', { roomId, players }));
+      setupGame(room, roomId, players);
     } else {
       socket.emit('roomFullOrInvalid');
     }
   });
 
-  const setupGame = (room, roomId) => {
+  const setupGame = (room, roomId, players) => {
     const fruit = randomPosition();
     const scores = { };
 
@@ -53,13 +58,19 @@ io.on('connection', (socket) => {
       [room[1].id]: { x: 1, y: 0 }
     };
 
+    const lastDirections = { ...directions };
+
     room.forEach(socket => {
       socket.on('direction', (dir) => {
-        directions[socket.id] = dir;
+        const last = lastDirections[socket.id];
+        if ((dir.x !== -last.x || dir.y !== -last.y)) {
+          directions[socket.id] = dir;
+        }
       });
     });
 
     const interval = setInterval(() => {
+      const newHeads = {};
       for (let id in snakes) {
         const snake = snakes[id];
         const dir = directions[id];
@@ -67,15 +78,38 @@ io.on('connection', (socket) => {
 
         head.x = (head.x + dir.x + 40) % 40;
         head.y = (head.y + dir.y + 30) % 30;
+        newHeads[id] = head;
+      }
 
-        snake.unshift(head);
+      // Check collision
+      const allPositions = Object.values(snakes).flat();
+      for (let id in newHeads) {
+        const head = newHeads[id];
 
-        if (head.x === fruit.x && head.y === fruit.y) {
+        // Check self collision
+        if (snakes[id].some((seg, idx) => idx !== 0 && seg.x === head.x && seg.y === head.y)) {
+          endGame(room, roomId, id === room[0].id ? room[1].id : room[0].id, scores, interval);
+          return;
+        }
+
+        // Check collision with other snake
+        const otherId = id === room[0].id ? room[1].id : room[0].id;
+        if (snakes[otherId].some(seg => seg.x === head.x && seg.y === head.y)) {
+          endGame(room, roomId, otherId, scores, interval);
+          return;
+        }
+      }
+
+      for (let id in snakes) {
+        snakes[id].unshift(newHeads[id]);
+        lastDirections[id] = directions[id];
+
+        if (newHeads[id].x === fruit.x && newHeads[id].y === fruit.y) {
           fruit.x = Math.floor(Math.random() * 40);
           fruit.y = Math.floor(Math.random() * 30);
           scores[id]++;
         } else {
-          snake.pop();
+          snakes[id].pop();
         }
       }
 
@@ -89,14 +123,12 @@ io.on('connection', (socket) => {
 
     }, 100);
 
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       clearInterval(interval);
+      const scoreA = scores[room[0].id];
+      const scoreB = scores[room[1].id];
       const winner =
-        scores[room[0].id] > scores[room[1].id]
-          ? room[0].id
-          : scores[room[0].id] < scores[room[1].id]
-          ? room[1].id
-          : null;
+        scoreA > scoreB ? room[0].id : scoreB > scoreA ? room[1].id : null;
 
       room.forEach(s =>
         s.emit('gameOver', {
@@ -104,9 +136,19 @@ io.on('connection', (socket) => {
           scores
         })
       );
-
       delete rooms[roomId];
     }, 300000); // 5 mins
+  };
+
+  const endGame = (room, roomId, winnerId, scores, interval) => {
+    clearInterval(interval);
+    room.forEach(s =>
+      s.emit('gameOver', {
+        winner: winnerId,
+        scores
+      })
+    );
+    delete rooms[roomId];
   };
 });
 

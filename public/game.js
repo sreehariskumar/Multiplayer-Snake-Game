@@ -24,14 +24,17 @@ let snakes = {};
 let fruit = {};
 let scores = {};
 let startTime = null;
+let players = {};
 
-socket.on('startGame', roomId => {
+socket.on('startGame', data => {
+  players = data.players;
+
   let countdown = 3;
   const info = document.getElementById('info');
 
   const countdownInterval = setInterval(() => {
     if (countdown > 0) {
-      info.textContent = `Controls: Arrow Keys ← ↑ → ↓ | Starting in ${countdown}...`;
+      info.textContent = `You are ${players[socket.id]} snake | Controls: Arrow Keys ← ↑ → ↓ | Starting in ${countdown}...`;
       countdown--;
     } else {
       clearInterval(countdownInterval);
@@ -63,7 +66,7 @@ socket.on('gameState', (state) => {
 
 socket.on('gameOver', ({ winner, scores }) => {
   document.getElementById('info').textContent = winner
-    ? `Game Over! Winner: ${winner}`
+    ? (winner === socket.id ? 'You Win!' : 'You Lose!')
     : 'Game Over! It’s a tie.';
 });
 
@@ -76,7 +79,7 @@ function loop() {
 
   // Draw snakes
   Object.keys(snakes).forEach(id => {
-    ctx.fillStyle = id === socket.id ? 'lime' : 'cyan';
+    ctx.fillStyle = players[id] || 'white';
     snakes[id].forEach(part => {
       ctx.fillRect(part.x * scale, part.y * scale, scale, scale);
     });
