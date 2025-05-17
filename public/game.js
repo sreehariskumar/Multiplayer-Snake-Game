@@ -13,7 +13,7 @@ document.getElementById('joinRoom').onclick = () => {
 };
 
 socket.on('roomCreated', roomId => {
-  document.getElementById('info').textContent = `Room created! Share this Room ID to invite: ${roomId}`;
+  document.getElementById('info').textContent = `Room created! Share this Room ID with your friend: ${roomId}`;
 });
 
 socket.on('roomFullOrInvalid', () => {
@@ -29,12 +29,12 @@ let players = {};
 socket.on('startGame', data => {
   players = data.players;
 
-  let countdown = 3;
+  let countdown = 5;
   const info = document.getElementById('info');
 
   const countdownInterval = setInterval(() => {
     if (countdown > 0) {
-      info.textContent = `You are ${players[socket.id]} snake | Controls: Arrow Keys ← ↑ → ↓ | Starting in ${countdown}...`;
+      info.textContent = `You are ${players[socket.id]} snake | Starting in ${countdown}...`;
       countdown--;
     } else {
       clearInterval(countdownInterval);
@@ -58,6 +58,22 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+document.querySelectorAll('.control-button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.getAttribute('data-dir');
+    const dir = {
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 }
+    }[key];
+
+    if (dir) {
+      socket.emit('direction', dir);
+    }
+  });
+});
+
 socket.on('gameState', (state) => {
   snakes = state.snakes;
   fruit = state.fruit;
@@ -73,20 +89,32 @@ socket.on('gameOver', ({ winner, scores }) => {
 function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw fruit
-  ctx.fillStyle = 'red';
-  ctx.fillRect(fruit.x * scale, fruit.y * scale, scale, scale);
+  // Draw fruit as 🍎
+  ctx.font = `${scale}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText("🍎", fruit.x * scale + scale / 2, fruit.y * scale + scale / 2);
 
-  // Draw snakes
   Object.keys(snakes).forEach(id => {
     ctx.fillStyle = players[id] || 'white';
     snakes[id].forEach(part => {
       ctx.fillRect(part.x * scale, part.y * scale, scale, scale);
     });
+  });
 
-    // Score
+  // Draw scores
+  Object.keys(snakes).forEach(id => {
     ctx.fillStyle = 'white';
-    ctx.fillText(`Player ${id === socket.id ? 'You' : 'Opponent'}: ${scores[id]}`, id === socket.id ? 10 : 650, 20);
+    ctx.font = `16px Arial`;
+    ctx.textBaseline = 'top';
+
+    if (id === socket.id) {
+      ctx.textAlign = 'left';
+      ctx.fillText(`Player You: ${scores[id]}`, 10, 10);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillText(`Player Opponent: ${scores[id]}`, canvas.width - 10, 10);
+    }
   });
 
   if (Date.now() - startTime < 5 * 60 * 1000) {
