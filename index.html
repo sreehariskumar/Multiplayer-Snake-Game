@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Multiplayer Snake Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Multiplayer Snake Game</h1>
+
+  <div id="menu">
+    <button id="createRoom">Create Game</button>
+    <input type="text" id="roomIdInput" placeholder="Enter Room ID" />
+    <button id="joinRoom">Join Game</button>
+  </div>
+
+  <p id="info"></p>
+
+  <canvas id="game" width="800" height="600"></canvas>
+
+  <!-- On-Screen Controls -->
+  <div class="controls">
+    <div class="control-row">
+      <button class="control-button" data-dir="ArrowUp">↑</button>
+    </div>
+    <div class="control-row">
+      <button class="control-button" data-dir="ArrowLeft">←</button>
+      <button class="control-button" data-dir="ArrowDown">↓</button>
+      <button class="control-button" data-dir="ArrowRight">→</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
