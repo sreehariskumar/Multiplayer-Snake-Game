@@ -51,5 +51,5 @@ Let the friendly sabotage begin! 😂
 git clone https://github.com/sreehariskumar/Multiplayer-Snake-Game.git
 cd Multiplayer-Snake-Game/
 npm install
-npm server
+npm start
 ```
