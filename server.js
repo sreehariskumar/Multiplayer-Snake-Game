@@ -42,8 +42,8 @@ io.on('connection', (socket) => {
   });
 
   const setupGame = (room, roomId, players) => {
-    const fruit = randomPosition();
-    const scores = { };
+    let fruit = randomPosition();
+    const scores = {};
 
     const snakes = {
       [room[0].id]: createSnake(),
@@ -82,17 +82,16 @@ io.on('connection', (socket) => {
       }
 
       // Check collision
-      const allPositions = Object.values(snakes).flat();
       for (let id in newHeads) {
         const head = newHeads[id];
 
-        // Check self collision
+        // Self-collision
         if (snakes[id].some((seg, idx) => idx !== 0 && seg.x === head.x && seg.y === head.y)) {
           endGame(room, roomId, id === room[0].id ? room[1].id : room[0].id, scores, interval);
           return;
         }
 
-        // Check collision with other snake
+        // Collision with opponent
         const otherId = id === room[0].id ? room[1].id : room[0].id;
         if (snakes[otherId].some(seg => seg.x === head.x && seg.y === head.y)) {
           endGame(room, roomId, otherId, scores, interval);
@@ -105,8 +104,7 @@ io.on('connection', (socket) => {
         lastDirections[id] = directions[id];
 
         if (newHeads[id].x === fruit.x && newHeads[id].y === fruit.y) {
-          fruit.x = Math.floor(Math.random() * 40);
-          fruit.y = Math.floor(Math.random() * 30);
+          fruit = randomPosition();
           scores[id]++;
         } else {
           snakes[id].pop();
@@ -137,7 +135,7 @@ io.on('connection', (socket) => {
         })
       );
       delete rooms[roomId];
-    }, 300000); // 5 mins
+    }, 300000); // 5 minutes
   };
 
   const endGame = (room, roomId, winnerId, scores, interval) => {
