@@ -3,6 +3,8 @@
 💼 **Stressed at work?** It’s time for a productivity break — also known as **guilt-free gaming!** 🎮  
 Grab your favourite stressed-out colleague and challenge them to a **fast-paced snake showdown**!
 
+![Snake Game](snake_game.png)
+
 ---
 
 ## 🕹️ How to Play
