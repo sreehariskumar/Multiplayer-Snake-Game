@@ -13,7 +13,27 @@ document.getElementById('joinRoom').onclick = () => {
 };
 
 socket.on('roomCreated', roomId => {
-  document.getElementById('info').textContent = `Room created! Share this Room ID with your friend: ${roomId}`;
+  const info = document.getElementById('info');
+  info.innerHTML = `
+    <div id="roomInfoBox" style="margin-top: 10px;">
+      <div>Room created! Share this Room ID with your friend:</div>
+      <div style="margin: 8px 0;">
+        <span id="roomId" style="font-weight: bold;">${roomId}</span>
+        <button id="copyBtn" title="Copy Room ID" style="margin-left: 8px; cursor: pointer;">📋</button>
+      </div>
+      <div style="color: yellow; font-size: 14px;">⚠️ Don't refresh the page!</div>
+    </div>
+  `;
+
+  document.getElementById('copyBtn').onclick = () => {
+    const text = document.getElementById('roomId').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      document.getElementById('copyBtn').textContent = '✅';
+      setTimeout(() => {
+        document.getElementById('copyBtn').textContent = '📋';
+      }, 1000);
+    });
+  };
 });
 
 socket.on('roomFullOrInvalid', () => {
@@ -22,6 +42,7 @@ socket.on('roomFullOrInvalid', () => {
 
 let snakes = {};
 let fruit = {};
+let fruitEmoji = '🍎';
 let scores = {};
 let startTime = null;
 let players = {};
@@ -32,9 +53,15 @@ socket.on('startGame', data => {
   let countdown = 5;
   const info = document.getElementById('info');
 
+  // Remove room info box if present
+  const roomInfoBox = document.getElementById('roomInfoBox');
+  if (roomInfoBox) roomInfoBox.remove();
+
   const countdownInterval = setInterval(() => {
     if (countdown > 0) {
-      info.textContent = `You are ${players[socket.id]} snake | Starting in ${countdown}...`;
+      const color = players[socket.id];
+      const colorText = `<span style="color: ${color};">${color}</span>`;
+      info.innerHTML = `You are ${colorText} snake | Starting in ${countdown}...`;
       countdown--;
     } else {
       clearInterval(countdownInterval);
@@ -77,6 +104,7 @@ document.querySelectorAll('.control-button').forEach(btn => {
 socket.on('gameState', (state) => {
   snakes = state.snakes;
   fruit = state.fruit;
+  fruitEmoji = state.fruitEmoji;
   scores = state.scores;
 });
 
@@ -89,11 +117,11 @@ socket.on('gameOver', ({ winner, scores }) => {
 function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw fruit as 🍎
+  // Draw fruit
   ctx.font = `${scale}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText("🍎", fruit.x * scale + scale / 2, fruit.y * scale + scale / 2);
+  ctx.fillText(fruitEmoji, fruit.x * scale + scale / 2, fruit.y * scale + scale / 2);
 
   Object.keys(snakes).forEach(id => {
     ctx.fillStyle = players[id] || 'white';
@@ -110,14 +138,12 @@ function loop() {
 
     if (id === socket.id) {
       ctx.textAlign = 'left';
-      ctx.fillText(`Player You: ${scores[id]}`, 10, 10);
+      ctx.fillText(`Player You - Score: ${scores[id]}`, 10, 10);
     } else {
       ctx.textAlign = 'right';
-      ctx.fillText(`Player Opponent: ${scores[id]}`, canvas.width - 10, 10);
+      ctx.fillText(`Opponent - Score: ${scores[id]}`, canvas.width - 10, 10);
     }
   });
 
-  if (Date.now() - startTime < 5 * 60 * 1000) {
-    requestAnimationFrame(loop);
-  }
+  requestAnimationFrame(loop);
 }
