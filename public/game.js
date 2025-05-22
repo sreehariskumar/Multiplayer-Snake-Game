@@ -46,8 +46,10 @@ let fruitEmoji = '🍎';
 let scores = {};
 let startTime = null;
 let players = {};
+let currentRoomId = null;
 
 socket.on('startGame', data => {
+  currentRoomId = data.roomId;
   players = data.players;
 
   let countdown = 5;
@@ -70,6 +72,98 @@ socket.on('startGame', data => {
       requestAnimationFrame(loop);
     }
   }, 1000);
+});
+
+socket.on('prepareRematch', () => {
+  const info = document.getElementById('info');
+  let countdown = 5;
+  
+  const countdownInterval = setInterval(() => {
+    if (countdown > 0) {
+      info.innerHTML = `Rematch starting in ${countdown}...`;
+      countdown--;
+    } else {
+      clearInterval(countdownInterval);
+    }
+  }, 1000);
+});
+
+socket.on('gameOver', ({ winner, scores }) => {
+  document.getElementById('info').textContent = winner
+    ? (winner === socket.id ? 'You Win!' : 'You Lose!')
+    : 'Game Over! It’s a tie.';
+
+  // Show rematch dialog
+  const rematchDialog = document.createElement('div');
+  rematchDialog.style.position = 'fixed';
+  rematchDialog.style.top = '50%';
+  rematchDialog.style.left = '50%';
+  rematchDialog.style.transform = 'translate(-50%, -50%)';
+  rematchDialog.style.backgroundColor = '#333';
+  rematchDialog.style.padding = '20px';
+  rematchDialog.style.borderRadius = '10px';
+  rematchDialog.style.zIndex = '1000';
+  rematchDialog.style.textAlign = 'center';
+  rematchDialog.style.color = 'white';
+  
+  rematchDialog.innerHTML = `
+    <h3>Rematch?</h3>
+    <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+      <button id="acceptRematch" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Yes</button>
+      <button id="declineRematch" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">No</button>
+    </div>
+  `;
+  
+  document.body.appendChild(rematchDialog);
+  
+  document.getElementById('acceptRematch').addEventListener('click', () => {
+    socket.emit('requestRematch', currentRoomId);
+    rematchDialog.remove();
+  });
+  
+  document.getElementById('declineRematch').addEventListener('click', () => {
+    socket.emit('declineRematch', currentRoomId);
+    rematchDialog.remove();
+  });
+});
+
+socket.on('rematchRequested', (playerId) => {
+  const info = document.getElementById('info');
+  info.innerHTML = `Opponent wants a rematch...`;
+});
+
+socket.on('rematchDeclined', () => {
+  const info = document.getElementById('info');
+  info.textContent = `Opponent declined rematch.`;
+  
+  // Show leave dialog
+  const leaveDialog = document.createElement('div');
+  leaveDialog.style.position = 'fixed';
+  leaveDialog.style.top = '50%';
+  leaveDialog.style.left = '50%';
+  leaveDialog.style.transform = 'translate(-50%, -50%)';
+  leaveDialog.style.backgroundColor = '#333';
+  leaveDialog.style.padding = '20px';
+  leaveDialog.style.borderRadius = '10px';
+  leaveDialog.style.zIndex = '1000';
+  leaveDialog.style.textAlign = 'center';
+  leaveDialog.style.color = 'white';
+  
+  leaveDialog.innerHTML = `
+    <h3>Opponent declined rematch</h3>
+    <button id="closeDialog" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px;">OK</button>
+  `;
+  
+  document.body.appendChild(leaveDialog);
+  
+  document.getElementById('closeDialog').addEventListener('click', () => {
+    leaveDialog.remove();
+  });
+});
+
+socket.on('opponentDisconnected', () => {
+  const info = document.getElementById('info');
+  info.textContent = `Opponent disconnected. Game over.`;
 });
 
 document.addEventListener('keydown', (e) => {
@@ -106,12 +200,6 @@ socket.on('gameState', (state) => {
   fruit = state.fruit;
   fruitEmoji = state.fruitEmoji;
   scores = state.scores;
-});
-
-socket.on('gameOver', ({ winner, scores }) => {
-  document.getElementById('info').textContent = winner
-    ? (winner === socket.id ? 'You Win!' : 'You Lose!')
-    : 'Game Over! It’s a tie.';
 });
 
 function loop() {
