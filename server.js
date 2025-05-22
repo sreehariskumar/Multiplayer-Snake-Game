@@ -11,13 +11,17 @@ const PORT = 3000;
 app.use(express.static('public'));
 
 let rooms = {};
+const fruitEmojis = ['🍎','🍏','🍐','🍊','🍇','🍓','🫐','🍉','🍌','🥑','🍍','🍒'];
 
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
   socket.on('createRoom', () => {
     const roomId = uuidv4();
-    rooms[roomId] = [socket];
+    rooms[roomId] = {
+      players: [socket],
+      rematchRequests: new Set()
+    };
     socket.join(roomId);
     socket.emit('roomCreated', roomId);
   });
@@ -25,42 +29,78 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', (roomId) => {
     const room = rooms[roomId];
 
-    if (room && room.length < 2) {
-      room.push(socket);
+    if (room && room.players.length < 2) {
+      room.players.push(socket);
       socket.join(roomId);
 
       const players = {
-        [room[0].id]: 'lime',
-        [room[1].id]: 'cyan'
+        [room.players[0].id]: 'green',
+        [room.players[1].id]: 'blue'
       };
 
-      room.forEach(s => s.emit('startGame', { roomId, players }));
+      room.players.forEach(s => s.emit('startGame', { roomId, players }));
       setupGame(room, roomId, players);
     } else {
       socket.emit('roomFullOrInvalid');
     }
   });
 
+  socket.on('requestRematch', (roomId) => {
+    const room = rooms[roomId];
+    if (room) {
+      room.rematchRequests.add(socket.id);
+      room.players.forEach(s => s.emit('rematchRequested', socket.id));
+
+      if (room.rematchRequests.size === 2) {
+        room.rematchRequests.clear();
+        startRematch(room, roomId);
+      }
+    }
+  });
+
+  socket.on('declineRematch', (roomId) => {
+    const room = rooms[roomId];
+    if (room) {
+      room.players.forEach(s => s.emit('rematchDeclined'));
+      delete rooms[roomId];
+    }
+  });
+
+  const startRematch = (room, roomId) => {
+    const players = {
+      [room.players[0].id]: 'green',
+      [room.players[1].id]: 'blue'
+    };
+    
+    room.players.forEach(s => s.emit('prepareRematch'));
+    
+    setTimeout(() => {
+      room.players.forEach(s => s.emit('startGame', { roomId, players }));
+      setupGame(room, roomId, players);
+    }, 5000);
+  };
+
   const setupGame = (room, roomId, players) => {
     let fruit = randomPosition();
+    let fruitEmoji = randomFruit();
     const scores = {};
 
     const snakes = {
-      [room[0].id]: createSnake(),
-      [room[1].id]: createSnake()
+      [room.players[0].id]: createSnake(),
+      [room.players[1].id]: createSnake()
     };
 
-    scores[room[0].id] = 0;
-    scores[room[1].id] = 0;
+    scores[room.players[0].id] = 0;
+    scores[room.players[1].id] = 0;
 
     const directions = {
-      [room[0].id]: { x: 1, y: 0 },
-      [room[1].id]: { x: 1, y: 0 }
+      [room.players[0].id]: { x: 1, y: 0 },
+      [room.players[1].id]: { x: 1, y: 0 }
     };
 
     const lastDirections = { ...directions };
 
-    room.forEach(socket => {
+    room.players.forEach(socket => {
       socket.on('direction', (dir) => {
         const last = lastDirections[socket.id];
         if ((dir.x !== -last.x || dir.y !== -last.y)) {
@@ -81,18 +121,18 @@ io.on('connection', (socket) => {
         newHeads[id] = head;
       }
 
-      // Check collision
+      // Check collisions
       for (let id in newHeads) {
         const head = newHeads[id];
 
-        // Self-collision
+        // Self collision
         if (snakes[id].some((seg, idx) => idx !== 0 && seg.x === head.x && seg.y === head.y)) {
-          endGame(room, roomId, id === room[0].id ? room[1].id : room[0].id, scores, interval);
+          endGame(room, roomId, id === room.players[0].id ? room.players[1].id : room.players[0].id, scores, interval);
           return;
         }
 
         // Collision with opponent
-        const otherId = id === room[0].id ? room[1].id : room[0].id;
+        const otherId = id === room.players[0].id ? room.players[1].id : room.players[0].id;
         if (snakes[otherId].some(seg => seg.x === head.x && seg.y === head.y)) {
           endGame(room, roomId, otherId, scores, interval);
           return;
@@ -105,16 +145,18 @@ io.on('connection', (socket) => {
 
         if (newHeads[id].x === fruit.x && newHeads[id].y === fruit.y) {
           fruit = randomPosition();
+          fruitEmoji = randomFruit();
           scores[id]++;
         } else {
           snakes[id].pop();
         }
       }
 
-      room.forEach(s => {
+      room.players.forEach(s => {
         s.emit('gameState', {
           snakes,
           fruit,
+          fruitEmoji,
           scores
         });
       });
@@ -123,31 +165,44 @@ io.on('connection', (socket) => {
 
     const timeout = setTimeout(() => {
       clearInterval(interval);
-      const scoreA = scores[room[0].id];
-      const scoreB = scores[room[1].id];
+      const scoreA = scores[room.players[0].id];
+      const scoreB = scores[room.players[1].id];
       const winner =
-        scoreA > scoreB ? room[0].id : scoreB > scoreA ? room[1].id : null;
+        scoreA > scoreB ? room.players[0].id : scoreB > scoreA ? room.players[1].id : null;
 
-      room.forEach(s =>
+      room.players.forEach(s =>
         s.emit('gameOver', {
           winner,
           scores
         })
       );
-      delete rooms[roomId];
     }, 300000); // 5 minutes
   };
 
   const endGame = (room, roomId, winnerId, scores, interval) => {
     clearInterval(interval);
-    room.forEach(s =>
+    room.players.forEach(s =>
       s.emit('gameOver', {
         winner: winnerId,
         scores
       })
     );
-    delete rooms[roomId];
   };
+
+  socket.on('disconnect', () => {
+    for (const roomId in rooms) {
+      const room = rooms[roomId];
+      const index = room.players.findIndex(p => p.id === socket.id);
+      if (index !== -1) {
+        const otherPlayer = room.players[1 - index];
+        if (otherPlayer) {
+          otherPlayer.emit('opponentDisconnected');
+        }
+        delete rooms[roomId];
+        break;
+      }
+    }
+  });
 });
 
 const createSnake = () => [
@@ -158,6 +213,8 @@ const randomPosition = () => ({
   x: Math.floor(Math.random() * 40),
   y: Math.floor(Math.random() * 30)
 });
+
+const randomFruit = () => fruitEmojis[Math.floor(Math.random() * fruitEmojis.length)];
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
