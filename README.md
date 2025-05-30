@@ -27,7 +27,6 @@ Grab your favourite stressed-out colleague and challenge them to a **fast-paced 
 
 ### 💥 Rules
 - Don’t collide with yourself… or with each other!  
-![Screenshot4](Screenshot4.png)
 
 
 - The goal? **Feed your snake more apples** (that red box-looking thing) than your friend.
